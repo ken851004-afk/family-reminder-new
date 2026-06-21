@@ -1,0 +1,24 @@
+name: Caregiver Personal Reminder
+
+on:
+  schedule:
+    # Every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install baileys qrcode node-cache pino
+      - name: Send caregiver reminders
+        env:
+          WA_CREDS_B64: ${{ secrets.WA_CREDS_B64 }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: node wa-caregiver-remind.js
