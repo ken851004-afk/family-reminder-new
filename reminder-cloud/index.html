@@ -278,10 +278,12 @@ var API_BASE = null;
 var API_ONLINE = false;
 var GH_ONLINE = false;
 
-// GitHub API direct access — instant read/write, works from anywhere, no WiFi needed
-var GITHUB_TOKEN = prompt('請輸入你的 GitHub Personal Access Token (ghp_xxx)：') || '';
+// GitHub API — read is public (no token needed), write needs token
 var GITHUB_REPO = 'ken851004-afk/family-reminder-new';
 var GITHUB_API_URL = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/data.json';
+
+// Token stored in localStorage (user inputs once, saved for future use)
+var GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
 
 // UTF-8 safe base64 encode/decode (fix Chinese garbled text)
 function utf8ToBase64(str) {
@@ -297,45 +299,57 @@ function base64ToUtf8(b64) {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
-// ===== GitHub API: READ =====
+// ===== GitHub API: READ (public, no token needed) =====
 function ghApiFetch() {
   return fetch(GITHUB_API_URL + '?t=' + Date.now(), {
     headers: {
-      'Authorization': 'Bearer ' + GITHUB_TOKEN,
       'Accept': 'application/vnd.github.v3+json'
     }
   }).then(function(r) {
     if (!r.ok) throw new Error('GH API HTTP ' + r.status);
     return r.json();
   }).then(function(gh) {
+    _ghSha = gh.sha; // save SHA for future writes
     var content = gh.content.replace(/\n/g, '');
     var json = base64ToUtf8(content);
     return JSON.parse(json);
   });
 }
 
-// ===== GitHub API: WRITE (commit directly) =====
+// ===== GitHub API: WRITE (needs token) =====
 var _ghSha = null; // latest SHA from last read
+
+// Helper: ensure we have a token (ask user if not)
+function ensureToken() {
+  GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
+  if (GITHUB_TOKEN) return Promise.resolve();
+  return new Promise(function(resolve, reject) {
+    var tok = prompt('請輸入 GitHub Personal Access Token (需要 repo 權限):\n\n獲取 Token: https://github.com/settings/tokens');
+    if (!tok) { reject(new Error('需要 Token 才能寫入資料')); return; }
+    tok = tok.trim();
+    GITHUB_TOKEN = tok;
+    localStorage.setItem('gh_token', tok);
+    resolve();
+  });
+}
+
 function ghApiWrite(data) {
-  var content = utf8ToBase64(JSON.stringify(data, null, 2));
-  var body = {
-    message: 'Web update ' + new Date().toISOString().replace('T',' ').substring(0,19),
-    content: content,
-    branch: 'master'
-  };
-  if (_ghSha) body.sha = _ghSha;
-  else {
-    // Need to get SHA first if we don't have it
+  return ensureToken().then(function() {
+    var content = utf8ToBase64(JSON.stringify(data, null, 2));
+    var body = {
+      message: 'Web update ' + new Date().toISOString().replace('T',' ').substring(0,19),
+      content: content,
+      branch: 'master'
+    };
+    if (_ghSha) body.sha = _ghSha;
     return fetch(GITHUB_API_URL, {
-      headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
-    }).then(function(r) { return r.json(); }).then(function(gh) {
-      _ghSha = gh.sha;
-      body.sha = _ghSha;
-      return fetch(GITHUB_API_URL, {
-        method: 'PUT',
-        headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + GITHUB_TOKEN,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
     }).then(function(r) {
       if (!r.ok) throw new Error('GH write HTTP ' + r.status);
       return r.json();
@@ -343,17 +357,6 @@ function ghApiWrite(data) {
       _ghSha = gh.content.sha;
       return gh;
     });
-  }
-  return fetch(GITHUB_API_URL, {
-    method: 'PUT',
-    headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  }).then(function(r) {
-    if (!r.ok) throw new Error('GH write HTTP ' + r.status);
-    return r.json();
-  }).then(function(gh) {
-    _ghSha = gh.content.sha;
-    return gh;
   });
 }
 
