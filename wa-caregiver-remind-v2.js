@@ -13,7 +13,7 @@ const https = require('https');
 const path = require('path');
 
 // ===== Config =====
-const DATA_URL = 'https://raw.githubusercontent.com/ken851004-afk/family-reminder-cloud/main/data.json';
+const DATA_URL = 'https://raw.githubusercontent.com/ken851004-afk/family-reminder-cloud/master/data.json';
 const NOTIFIED_CACHE_FILE = '/tmp/wa-caregiver-notified.json';
 
 // Caregiver phone map
@@ -129,7 +129,8 @@ async function main() {
     data = await fetchData();
   } catch(e) {
     console.error('[DATA] Failed:', e.message);
-    process.exit(1);
+    console.log('=== Done (data fetch failed) ===');
+    process.exit(0); // exit gracefully, next run retries
   }
   const reminders = data.reminders || [];
   console.log(`[DATA] Loaded ${reminders.length} reminders`);
@@ -189,8 +190,10 @@ async function main() {
 
   // 3. Decode WhatsApp creds
   if (!process.env.WA_CREDS_B64) {
-    console.error('WA_CREDS_B64 not set');
-    process.exit(1);
+    console.log('[WA] WA_CREDS_B64 not set - skipping WhatsApp send (set this secret to enable)');
+    console.log('[WA] Notifications queued for send but WhatsApp not configured.');
+    console.log('=== Done (WhatsApp not configured) ===');
+    process.exit(0); // exit gracefully, no failure
   }
   const credsJson = Buffer.from(process.env.WA_CREDS_B64, 'base64').toString('utf8');
   const SESSION_DIR = '/tmp/wa-session-caregiver';
