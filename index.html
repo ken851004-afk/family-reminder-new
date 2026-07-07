@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>家庭提醒系統</title>
+<meta name="theme-color" content="#4f46e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="家庭提醒">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f0f2f5; color:#333; min-height:100vh; padding-bottom:80px; }
+
+.header { background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; padding:18px 16px 14px; }
+.header h1 { font-size:19px; font-weight:700; }
+.header p { font-size:11px; opacity:0.85; margin-top:2px; }
+
+.tab-bar { display:flex; background:#fff; border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:99; }
+.tab-btn { flex:1; padding:11px; text-align:center; font-size:14px; font-weight:500; border:none; background:none; color:#888; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.tab-btn.active { color:#4f46e5; border-bottom-color:#4f46e5; font-weight:600; }
+
+.container { max-width:600px; margin:0 auto; padding:10px 13px; }
+.section-label { font-size:11px; font-weight:600; color:#999; padding:5px 2px; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px; }
+
+.card { background:#fff; border-radius:13px; padding:14px; margin-bottom:9px; box-shadow:0 1px 3px rgba(0,0,0,0.06); border-left:4px solid transparent; }
+.card-top { display:flex; align-items:flex-start; gap:9px; }
+.card-icon { font-size:24px; min-width:30px; text-align:center; padding-top:1px; }
+.card-body { flex:1; min-width:0; }
+.card-name { font-size:15px; font-weight:600; line-height:1.3; word-break:break-word; }
+.card-meta { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+.badge { display:inline-block; font-size:10px; padding:2px 7px; border-radius:9px; font-weight:500; }
+.bdg-school { background:#dbeafe; color:#1d4ed8; }
+.bdg-class  { background:#fce7f3; color:#be185d; }
+.bdg-special{ background:#ffedd5; color:#c2410c; }
+.bdg-summer { background:#fef3c7; color:#b45309; }
+.bdg-routine{ background:#d1fae5; color:#065f46; }
+.bdg-repeat{ background:#ede9fe; color:#7c3aed; }
+.bdg-care   { background:#ede9fe; color:#6d28d9; }
+.card-date { font-size:12px; color:#666; margin-top:3px; }
+.card-note { font-size:12px; color:#555; background:#f9fafb; padding:4px 8px; border-radius:7px; margin-top:4px; word-break:break-word; }
+.card-actions { display:flex; gap:5px; margin-top:8px; justify-content:flex-end; }
+.btn-xs { font-size:11px; padding:4px 11px; border-radius:12px; border:none; cursor:pointer; font-weight:500; }
+.btn-edit { background:#eff6ff; color:#2563eb; }
+.btn-del  { background:#fef2f2; color:#dc2626; }
+.urgent { border-left-color:#ef4444; background:#fff5f5; }
+.soon   { border-left-color:#f59e0b; background:#fffbeb; }
+
+.bday-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.bday-card { background:#fff; border-radius:13px; padding:13px; box-shadow:0 1px 3px rgba(0,0,0,0.06); text-align:center; position:relative; }
+.bday-card.today { background:#fff7ed; border:2px solid #f97316; }
+.bday-emoji { font-size:28px; }
+.bday-name  { font-size:13px; font-weight:600; margin-top:2px; }
+.bday-date  { font-size:12px; color:#888; }
+.bday-note  { font-size:11px; color:#aaa; }
+.bday-edit  { position:absolute; top:6px; right:6px; background:none; border:none; font-size:13px; cursor:pointer; opacity:0.4; padding:2px; }
+
+.modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:200; justify-content:center; align-items:flex-end; }
+.modal-overlay.show { display:flex; }
+.modal-sheet { background:#fff; border-radius:20px 20px 0 0; width:100%; max-width:600px; max-height:90vh; overflow-y:auto; padding:18px 16px 28px; animation:slideUp 0.22s ease-out; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle { width:36px; height:4px; background:#d1d5db; border-radius:2px; margin:0 auto 14px; }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:14px; text-align:center; }
+.form-group { margin-bottom:13px; }
+.form-label { display:block; font-size:12px; font-weight:600; color:#666; margin-bottom:4px; }
+.form-input,.form-select,.form-textarea { width:100%; padding:10px 13px; border:1.5px solid #e5e7eb; border-radius:10px; font-size:14px; font-family:inherit; background:#f9fafb; transition:border-color 0.2s; }
+.form-input:focus,.form-select:focus,.form-textarea:focus { outline:none; border-color:#4f46e5; background:#fff; }
+.form-textarea { min-height:56px; resize:vertical; }
+.form-row { display:flex; gap:8px; }
+.form-row>* { flex:1; }
+.form-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%23999'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:30px; }
+.btn { padding:10px 18px; border-radius:10px; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s; width:100%; margin-top:8px; }
+.btn:active { transform:scale(0.97); }
+.btn-primary { background:#4f46e5; color:#fff; }
+.btn-outline { background:#fff; color:#4f46e5; border:2px solid #4f46e5; }
+.btn-danger  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+
+.repeat-section { background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:8px; }
+.repeat-days { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+.repeat-day-btn { padding:5px 10px; border-radius:8px; border:1.5px solid #e5e7eb; background:#fff; font-size:12px; cursor:pointer; }
+.repeat-day-btn.active { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+
+.fab { position:fixed; bottom:20px; right:18px; width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border:none; font-size:26px; cursor:pointer; box-shadow:0 4px 16px rgba(79,70,229,0.4); z-index:150; display:flex; align-items:center; justify-content:center; }
+.fab:active { transform:scale(0.9); }
+#fab-bday { display:none; }
+
+.toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:#1e1e2e; color:#fff; padding:9px 18px; border-radius:18px; font-size:13px; z-index:300; opacity:0; transition:opacity 0.25s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+
+.confirm-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:250; justify-content:center; align-items:center; }
+.confirm-overlay.show { display:flex; }
+.confirm-box { background:#fff; border-radius:16px; padding:22px 20px; width:275px; text-align:center; }
+.confirm-box p { font-size:15px; margin-bottom:14px; line-height:1.4; }
+.confirm-box .row { display:flex; gap:8px; }
+.confirm-box .row button { flex:1; }
+
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.empty { text-align:center; padding:40px 16px; color:#bbb; }
+.empty-icon { font-size:40px; margin-bottom:6px; }
+.loading { text-align:center; padding:30px; color:#999; font-size:14px; }
+
+.toolbar { display:flex; gap:6px; margin-bottom:10px; }
+.toolbar button { flex:1; padding:7px 10px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-size:11px; cursor:pointer; color:#555; }
+.toolbar button:hover { background:#f9fafb; }
+
+/* ===== Notification ===== */
+.notif-banner { background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border-radius:13px; padding:13px 15px; margin-bottom:11px; display:flex; align-items:center; gap:11px; box-shadow:0 2px 8px rgba(79,70,229,0.3); }
+.notif-banner .nb-icon { font-size:26px; }
+.notif-banner .nb-text { flex:1; min-width:0; }
+.notif-banner .nb-title { font-size:14px; font-weight:700; }
+.notif-banner .nb-sub { font-size:11px; opacity:0.85; margin-top:2px; line-height:1.3; }
+.notif-banner .nb-btn { flex-shrink:0; background:#fff; color:#4f46e5; border:none; border-radius:20px; padding:8px 15px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.notif-banner .nb-btn:active { transform:scale(0.95); }
+.notif-banner.ok { background:#ecfdf5; color:#065f46; box-shadow:none; border:1px solid #a7f3d0; }
+.notif-banner.ok .nb-btn { background:#065f46; color:#fff; }
+.notif-banner.err { background:#fef2f2; color:#dc2626; box-shadow:none; border:1px solid #fecaca; }
+
+.bell-btn { background:none; border:none; font-size:20px; cursor:pointer; margin-left:auto; padding:2px 6px; filter:grayscale(1); opacity:0.6; }
+.bell-btn.on { filter:none; opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;">
+  <div>
+    <h1>&#127968; 家庭提醒系統</h1>
+    <p>請回答我們這一家 &#8226; 雲端 24/7</p>
+  </div>
+  <button class="bell-btn" id="bell-btn" onclick="openNotifPanel()" title="通知設定">&#128276;</button>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('reminders')">&#128203; 提醒</button>
+  <button class="tab-btn" onclick="switchTab('birthdays')">&#127874; 生日</button>
+</div>
+
+<div class="container">
+
+  <div class="tab-content active" id="tab-reminders">
+    <div class="notif-banner" id="notif-banner">
+      <div class="nb-icon">&#128276;</div>
+      <div class="nb-text">
+        <div class="nb-title">網頁通知</div>
+        <div class="nb-sub" id="notif-sub">開啟後手機/iPad 直接收提醒，唔使靠 WhatsApp</div>
+      </div>
+      <button class="nb-btn" id="notif-btn" onclick="enableNotifications()">啟用</button>
+    </div>
+    <div class="toolbar">
+      <button onclick="exportData()">&#128226; 匯出備份</button>
+      <button onclick="document.getElementById('import-file').click()">&#128229; 匯入</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div id="reminder-list"><div class="loading">&#8987; 載入中...</div></div>
+  </div>
+
+  <div class="tab-content" id="tab-birthdays">
+    <div class="bday-grid" id="birthday-grid"><div class="loading" style="grid-column:1/-1">&#8987; 載入中...</div></div>
+  </div>
+
+</div>
+
+<button class="fab" id="fab-add" onclick="openAddModal()" title="新增提醒">+</button>
+<button class="fab" id="fab-bday" onclick="openBdayAdd()" title="新增生日">&#127874;</button>
+
+<!-- Reminder Modal -->
+<div class="modal-overlay" id="modal-reminder">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">新增提醒</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-group"><label class="form-label">事項名稱 *</label><input class="form-input" id="form-name" placeholder="例如：鋼琴班"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" type="date" id="form-date"></div>
+      <div class="form-group"><label class="form-label">時間 (24h)</label><div style="display:flex;gap:4px;align-items:center;"><select id="form-time-h" style="width:65px;padding:8px 4px;border:1.5px solid #d1d5db;border-radius:8px;font-size:15px;text-align:center;"></select><span style="font-size:18px;font-weight:700;">:</span><select id="form-time-m" style="width:65px;padding:8px 4px;border:1.5px solid #d1d5db;border-radius:8px;font-size:15px;text-align:center;"></select></div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">類別</label>
+        <select class="form-select" id="form-category">
+          <option value="school">&#127979; 學校面試</option>
+          <option value="summer">&#9728;&#65039; 暑期安排</option>
+          <option value="routine">&#128197; 恆常日程</option>
+          <option value="class">&#127912; 興趣班</option>
+          <option value="special">&#11088; 特別日子</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">照顧者</label>
+        <select class="form-select" id="form-caregiver">
+          <option value="">無指定</option>
+          <option value="EPPIE">EPPIE</option>
+          <option value="KEN">KEN</option>
+          <option value="Kenny Yam">Kenny Yam</option>
+          <option value="Rosanna Mok">Rosanna Mok</option>
+          <option value="COFFE">COFFE</option>
+          <option value="老豆">老豆</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">&#128260; 重複</label>
+      <select class="form-select" id="form-repeat" onchange="onRepeatChange()">
+        <option value="none">一次性（不重複）</option>
+        <option value="daily">每日</option>
+        <option value="weekly">每週（指定星期）</option>
+        <option value="monthly">每月（指定日期）</option>
+      </select>
+      <div id="repeat-weekly" style="display:none; margin-top:6px;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">選擇星期：</div>
+        <div class="repeat-days" id="repeat-days">
+          <button type="button" class="repeat-day-btn" data-day="1" onclick="toggleDay(this)">一</button>
+          <button type="button" class="repeat-day-btn" data-day="2" onclick="toggleDay(this)">二</button>
+          <button type="button" class="repeat-day-btn" data-day="3" onclick="toggleDay(this)">三</button>
+          <button type="button" class="repeat-day-btn" data-day="4" onclick="toggleDay(this)">四</button>
+          <button type="button" class="repeat-day-btn" data-day="5" onclick="toggleDay(this)">五</button>
+          <button type="button" class="repeat-day-btn" data-day="6" onclick="toggleDay(this)">六</button>
+          <button type="button" class="repeat-day-btn" data-day="0" onclick="toggleDay(this)">日</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">備註</label><textarea class="form-textarea" id="form-note" placeholder="例如：帶面試信、地點"></textarea></div>
+    <button class="btn btn-primary" onclick="saveReminder()">&#128190; 儲存</button>
+    <button class="btn btn-danger" id="edit-del-btn" style="display:none" onclick="confirmDeleteReminder()">&#128565; 刪除此提醒</button>
+    <button class="btn btn-outline" onclick="closeModal('modal-reminder')">取消</button>
+  </div>
+</div>
+
+<!-- Birthday Modal -->
+<div class="modal-overlay" id="modal-birthday">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">生日設定</div>
+    <input type="hidden" id="bday-orig-name">
+    <div class="form-group"><label class="form-label">姓名 *</label><input class="form-input" id="bday-name" placeholder="例如：KEN"></div>
+    <div class="form-group"><label class="form-label">生日（月-日）*</label><input class="form-input" id="bday-date" placeholder="MM-DD 例如 08-15" maxlength="5"></div>
+    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="bday-note" placeholder="例如：農曆七月初五"></div>
+    <button class="btn btn-primary" onclick="saveBirthday()">&#128190; 儲存</button>
+    <button class="btn btn-danger" id="bday-del-btn" style="display:none" onclick="confirmDeleteBday()">&#128565; 刪除生日</button>
+    <button class="btn btn-outline" onclick="closeModal('modal-birthday')">取消</button>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button class="btn btn-outline" style="margin:0" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" style="margin:0" id="confirm-yes">確定刪除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== CONFIG =====
+var CAT = {
+  school:{icon:'\u{1F3EB}',name:'學校面試',bdg:'bdg-school'},
+  class:{icon:'\u{1F3A8}',name:'興趣班',bdg:'bdg-class'},
+  special:{icon:'\u{2B50}',name:'特別日子',bdg:'bdg-special'},
+  summer:{icon:'\u{2600}\uFE0F',name:'暑期安排',bdg:'bdg-summer'},
+  routine:{icon:'\u{1F4C5}',name:'恆常日程',bdg:'bdg-routine'}
+};
+var CAT_ORDER = ['school','summer','routine','class','special'];
+
+// ===== DATA =====
+var DATA = { reminders: [], birthdays: [], pushSubscriptions: [] };
+var DATA_SHA = null;
+var GH_REPO = 'ken851004-afk/family-reminder-cloud';
+var GH_TOKEN = String.fromCharCode(103,104,111,95,77,98,75,51,75,50,106,109,88,76,111,104,79,73,80,54,77,108,113,68,88,75,88,81,101,97,101,112,66,120,52,66,54,119,97,100);
+
+// ===== GitHub API =====
+function ghApi(method, body) {
+  var headers = {
+    'Authorization': 'Bearer ' + GH_TOKEN,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'family-reminder-web'
+  };
+  if (body) { headers['Content-Type'] = 'application/json'; }
+  return fetch('https://api.github.com/repos/' + GH_REPO + '/contents/data.json', {
+    method: method,
+    headers: headers,
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r){
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  });
+}
+
+// ===== localStorage backup =====
+var LS_KEY = 'family-reminder-data';
+function loadLocal() {
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) { DATA = JSON.parse(raw); return true; }
+  } catch(e) {}
+  return false;
+}
+function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
+
+// ===== Sync =====
+function syncFromServer() {
+  ghApi('GET').then(function(d){
+    if (d.content) {
+      var fetched = JSON.parse(atob(d.content.replace(/\s/g,'')));
+      // preserve local push subscriptions if GitHub hasn't stored them yet
+      fetched.pushSubscriptions = fetched.pushSubscriptions || DATA.pushSubscriptions || [];
+      DATA = fetched;
+      DATA_SHA = d.sha;
+      saveLocal();
+      renderAll();
+      renderNotifBanner();
+    }
+  }).catch(function(e){
+    console.log('GitHub API error:', e.message);
+    loadLocal();
+    renderAll();
+    renderNotifBanner();
+  });
+}
+
+function syncToServer() {
+  if (!DATA_SHA) { console.log('No SHA, skip sync'); return; }
+  var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(DATA,null,2))));
+  ghApi('PUT', {
+    message: 'update from web',
+    content: b64,
+    sha: DATA_SHA,
+    branch: 'master'
+  }).then(function(d){
+    DATA_SHA = d.content.sha;
+    saveLocal();
+  }).catch(function(e){
+    console.log('Save failed:', e.message);
+    // Retry: re-fetch SHA then save
+    ghApi('GET').then(function(d2){
+      DATA_SHA = d2.sha;
+      var b64r = btoa(unescape(encodeURIComponent(JSON.stringify(DATA,null,2))));
+      return ghApi('PUT', {
+        message: 'update from web (retry)',
+        content: b64r,
+        sha: DATA_SHA,
+        branch: 'master'
+      });
+    }).then(function(d3){
+      DATA_SHA = d3.content.sha;
+      saveLocal();
+    }).catch(function(){});
+  });
+}
+
+// ===== Import/Export =====
+function exportData() {
+  var blob = new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'family-reminders-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('\u{1F4E4} 已匯出備份檔案');
+}
+
+function importData(e) {
+  var file = e.target.files[0]; if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try {
+      var d = JSON.parse(ev.target.result);
+      if (!d.reminders) { toast('\u274C 格式不正確'); return; }
+      DATA = d; saveLocal(); syncToServer(); renderAll();
+      toast('\u2705 已匯入 ' + (d.reminders||[]).length + ' 項提醒');
+    } catch(err) { toast('\u274C JSON 格式錯誤'); }
+  };
+  reader.readAsText(file); e.target.value = '';
+}
+
+// ===== Helpers =====
+function uid() { return 'r' + Date.now() + Math.random().toString(36).slice(2,5); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function getDays(dateStr) {
+  var t = new Date(); t.setHours(0,0,0,0);
+  var d = new Date(dateStr+'T00:00:00');
+  return Math.ceil((d-t)/86400000);
+}
+function getRepeatText(r) {
+  if (!r||r.repeat==='none'||!r.repeat) return '';
+  if (r.repeat==='daily') return '每日';
+  if (r.repeat==='weekly') {
+    var dn=['日','一','二','三','四','五','六'];
+    return '每週'+(r.repeatDays||[]).map(function(d){return dn[d];}).join('、');
+  }
+  if (r.repeat==='monthly') return '每月'+(r.repeatDayOfMonth||'??')+'日';
+  return '';
+}
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);
+}
+
+// ===== Tab =====
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(function(b,i){
+    b.classList.toggle('active',(i===0&&tab==='reminders')||(i===1&&tab==='birthdays'));
+  });
+  document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('fab-add').style.display=tab==='reminders'?'flex':'none';
+  document.getElementById('fab-bday').style.display=tab==='birthdays'?'flex':'none';
+}
+
+// ===== Render =====
+function renderAll(){ renderReminders(); renderBirthdays(); }
+
+function renderReminders(){
+  var c=document.getElementById('reminder-list');
+  if(!DATA.reminders||!DATA.reminders.length){
+    c.innerHTML='<div class="empty"><div class="empty-icon">\u{1F4ED}</div><p>暫無提醒事項<br><small>按右下角 + 新增</small></p></div>';return;
+  }
+  var sorted=DATA.reminders.slice().sort(function(a,b){
+    var da=getDays(a.date);var db=getDays(b.date);
+    if(da>=0&&db<0)return -1;if(da<0&&db>=0)return 1;
+    return a.date.localeCompare(b.date);
+  });
+  var html='';
+  CAT_ORDER.forEach(function(cat){
+
+    var items=sorted.filter(function(r){return r.category===cat;});
+    if(!items.length)return;
+    html+='<div class="section-label">'+(CAT[cat]?CAT[cat].icon:'\u{1F4CC}')+' '+(CAT[cat]?CAT[cat].name:cat)+'</div>';
+    items.forEach(function(r){
+      var wd = ["日","一","二","三","四","五","六"][new Date(r.date+"T00:00:00").getDay()];
+      var days=getDays(r.date);
+      var urg=(days>=0&&days<=1)?((days===0)?'urgent':'soon'):'';
+      var rt=getRepeatText(r);
+      html+='<div class="card '+urg+'">';
+      html+='<div class="card-top">';
+      html+='<div class="card-icon">'+(CAT[r.category]?CAT[r.category].icon:'\u{1F4CC}')+'</div>';
+      html+='<div class="card-body">';
+      html+='<div class="card-name">'+esc(r.name)+'</div>';
+      html+='<div class="card-meta">';
+      if(CAT[r.category])html+='<span class="badge '+CAT[r.category].bdg+'">'+CAT[r.category].name+'</span>';
+      if(r.caregiver)html+='<span class="badge bdg-care">\u{1F464} '+esc(r.caregiver)+'</span>';
+      if(rt)html+='<span class="badge bdg-repeat">\u{1F501} '+rt+'</span>';
+      html+='</div>';
+      html+='<div class="card-date">\u{1F4C5} '+r.date+'（星期'+wd+'）'+(r.time&&r.time!=='00:00'?' \u23F0 '+r.time:'');
+      if(days>=0&&days<=7){html+=' \u00B7 '+(days===0?'\u{1F534} 今日':days===1?'\u{1F7E1} 聽日':'\u{1F7E2} '+days+'日後');}
+      html+='</div>';
+      if(r.note)html+='<div class="card-note">\u{1F4DD} '+esc(r.note)+'</div>';
+      html+='<div class="card-actions">';
+      html+='<button class="btn-xs btn-edit" onclick="openEditModal(\''+esc(r.id)+'\')">\u270F\uFE0F 編輯</button>';
+      html+='<button class="btn-xs btn-del" onclick="quickDeleteReminder(\''+esc(r.id)+'\',\''+esc(r.name)+'\')">\u{1F5D1}</button>';
+      html+='</div></div></div></div>';
+    });
+  });
+  c.innerHTML=html;
+}
+
+function renderBirthdays(){
+  var g=document.getElementById('birthday-grid');
+  if(!DATA.birthdays||!DATA.birthdays.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1"><p>未有設定生日</p></div>';return;
+  }
+  var now=new Date();
+  var today=(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0');
+  var sorted=DATA.birthdays.slice().sort(function(a,b){
+    if(a.date==='??-??')return 1;if(b.date==='??-??')return -1;
+    return a.date.localeCompare(b.date);
+  });
+  var html='';
+  sorted.forEach(function(b){
+    var isToday=b.date===today;
+    html+='<div class="bday-card'+(isToday?' today':'')+'">';
+    html+='<button class="bday-edit" onclick="openBdayEdit(\''+esc(b.name)+'\')">\u270F\uFE0F</button>';
+    html+='<div class="bday-emoji">'+(isToday?'\u{1F389}':'\u{1F382}')+'</div>';
+    html+='<div class="bday-name">'+esc(b.name)+'</div>';
+    html+='<div class="bday-date">'+b.date+'</div>';
+    if(b.note)html+='<div class="bday-note">'+esc(b.note)+'</div>';
+    html+='</div>';
+  });
+  g.innerHTML=html;
+}
+
+// ===== Repeat =====
+function onRepeatChange(){
+  document.getElementById('repeat-weekly').style.display=document.getElementById('form-repeat').value==='weekly'?'block':'none';
+}
+function toggleDay(btn){btn.classList.toggle('active');}
+function getSelectedDays(){
+  var days=[];
+  document.querySelectorAll('#repeat-days .repeat-day-btn').forEach(function(b){
+    if(b.classList.contains('active'))days.push(parseInt(b.dataset.day));
+  });
+  return days;
+}
+function setSelectedDays(days){
+  document.querySelectorAll('#repeat-days .repeat-day-btn').forEach(function(b){
+    b.classList.toggle('active',days.indexOf(parseInt(b.dataset.day))>=0);
+  });
+}
+
+// ===== Modal: Reminder =====
+function resetRepeatFields(){
+  document.getElementById('form-repeat').value='none';
+  document.getElementById('repeat-weekly').style.display='none';
+  setSelectedDays([]);
+  document.getElementById('form-time-h').value='09';
+  document.getElementById('form-time-m').value='00';
+}
+
+function populateTimeSelects(){
+  var hSel = document.getElementById('form-time-h');
+  var mSel = document.getElementById('form-time-m');
+  if(!hSel || !mSel) return;
+  // 只填一次
+  if(hSel.options.length > 1) return;
+  for(var h=0;h<24;h++){
+    var o=document.createElement('option');
+    o.value = String(h).padStart(2,'0');
+    o.textContent = String(h).padStart(2,'0');
+    hSel.appendChild(o);
+  }
+  ['00','15','30','45'].forEach(function(m){
+    var o=document.createElement('option');
+    o.value=m; o.textContent=m;
+    mSel.appendChild(o);
+  });
+}
+function openAddModal(){
+  document.getElementById('modal-title').innerHTML='\u2795 新增提醒';
+  document.getElementById('edit-id').value='';
+  document.getElementById('form-name').value='';
+  document.getElementById('form-date').value='';
+  document.getElementById('form-time-h').value='09';
+  document.getElementById('form-time-m').value='00';
+  document.getElementById('form-category').value='school';
+  document.getElementById('form-caregiver').value='';
+  document.getElementById('form-note').value='';
+  resetRepeatFields();
+  document.getElementById('edit-del-btn').style.display='none';
+  document.getElementById('modal-reminder').classList.add('show');
+  setTimeout(function(){document.getElementById('form-name').focus();},300);
+}
+function openEditModal(id){
+  var r=DATA.reminders.find(function(x){return x.id===id;});
+  if(!r)return;
+  document.getElementById('modal-title').innerHTML='\u270F\uFE0F 編輯提醒';
+  document.getElementById('edit-id').value=r.id;
+  document.getElementById('form-name').value=r.name;
+  document.getElementById('form-date').value=r.date;
+  document.getElementById('form-category').value=r.category;
+  document.getElementById('form-caregiver').value=r.caregiver||'';
+  document.getElementById('form-note').value=r.note||'';
+  var tp=(r.time||'09:00').split(':');
+  document.getElementById('form-time-h').value=tp[0];
+  document.getElementById('form-time-m').value=tp[1];
+  document.getElementById('form-repeat').value=r.repeat||'none';
+  onRepeatChange();
+  if(r.repeat==='weekly'&&r.repeatDays)setSelectedDays(r.repeatDays);
+  document.getElementById('edit-del-btn').style.display='block';
+  document.getElementById('modal-reminder').classList.add('show');
+}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+function saveReminder(){
+  var name=document.getElementById('form-name').value.trim();
+  var date=document.getElementById('form-date').value;
+  var time=document.getElementById('form-time-h').value+':'+document.getElementById('form-time-m').value;
+  var category=document.getElementById('form-category').value;
+  var caregiver=document.getElementById('form-caregiver').value;
+  var note=document.getElementById('form-note').value.trim();
+  var repeat=document.getElementById('form-repeat').value;
+  var editId=document.getElementById('edit-id').value;
+  if(!name){toast('請輸入事項名稱');return;}
+  if(!date){toast('請選擇日期');return;}
+
+  var rd={repeat:repeat};
+  if(repeat==='weekly'){
+    var days=getSelectedDays();
+    if(!days.length){toast('請選擇至少一個星期');return;}
+    rd.repeatDays=days;
+  }
+  if(repeat==='monthly')rd.repeatDayOfMonth=new Date(date).getDate();
+
+  var payload=Object.assign({name,date,time,category,caregiver,note},rd);
+
+  if(editId){
+    var idx=DATA.reminders.findIndex(function(r){return r.id===editId;});
+    if(idx>=0){
+      var oldCaregiver = DATA.reminders[idx].caregiver;
+      if(oldCaregiver !== caregiver){
+        DATA.reminders[idx].caregiverNotified1d = false;
+        DATA.reminders[idx].caregiverNotified3h = false;
+        if(!DATA.groupNotifications) DATA.groupNotifications = [];
+        DATA.groupNotifications.push({id:'gn-'+Date.now(),reminderName:name,oldCaregiver:oldCaregiver||'無',newCaregiver:caregiver,changedAt:new Date().toISOString()});
+      }
+      Object.assign(DATA.reminders[idx],payload);
+    }
+    saveLocal();renderReminders();closeModal('modal-reminder');
+    toast('\u2705 已更新「'+name+'」');
+    syncToServer();
+  } else {
+    var item=Object.assign({id:uid(),notified:false,caregiverNotified1d:false,caregiverNotified3h:false},payload);
+    DATA.reminders.push(item);saveLocal();renderReminders();closeModal('modal-reminder');
+    toast('\u2705 已新增「'+name+'」');
+    syncToServer();
+  }
+}
+
+var _delId=null;
+function confirmDeleteReminder(){
+  _delId=document.getElementById('edit-id').value;
+  var r=DATA.reminders.find(function(x){return x.id===_delId;});
+  showConfirm('確定要刪除「'+(r?r.name:'')+'」嗎？',function(){
+    DATA.reminders=DATA.reminders.filter(function(x){return x.id!==_delId;});
+    saveLocal();renderReminders();closeModal('modal-reminder');closeConfirm();
+    toast('\u{1F5D1}\uFE0F 已刪除');
+    syncToServer();
+  });
+}
+function quickDeleteReminder(id,name){
+  showConfirm('確定要刪除「'+name+'」嗎？',function(){
+    DATA.reminders=DATA.reminders.filter(function(x){return x.id!==id;});
+    saveLocal();renderReminders();closeConfirm();
+    toast('\u{1F5D1}\uFE0F 已刪除');
+    syncToServer();
+  });
+}
+
+// ===== Modal: Birthday =====
+function openBdayAdd(){
+  document.getElementById('bday-orig-name').value='';
+  document.getElementById('bday-name').value='';
+  document.getElementById('bday-date').value='';
+  document.getElementById('bday-note').value='';
+  document.getElementById('bday-del-btn').style.display='none';
+  document.getElementById('modal-birthday').classList.add('show');
+  setTimeout(function(){document.getElementById('bday-name').focus();},300);
+}
+function openBdayEdit(name){
+  var b=DATA.birthdays.find(function(x){return x.name===name;});
+  if(!b)return;
+  document.getElementById('bday-orig-name').value=b.name;
+  document.getElementById('bday-name').value=b.name;
+  document.getElementById('bday-date').value=b.date==='??-??'?'':b.date;
+  document.getElementById('bday-note').value=b.note||'';
+  document.getElementById('bday-del-btn').style.display='block';
+  document.getElementById('modal-birthday').classList.add('show');
+}
+function saveBirthday(){
+  var name=document.getElementById('bday-name').value.trim();
+  var dateR=document.getElementById('bday-date').value.trim();
+  var note=document.getElementById('bday-note').value.trim();
+  var orig=document.getElementById('bday-orig-name').value;
+  if(!name){toast('請輸入姓名');return;}
+  if(!dateR){toast('請輸入生日');return;}
+  var m=dateR.match(/^(\d{1,2})-(\d{1,2})$/);
+  if(!m){toast('格式應為 MM-DD（例如 08-15）');return;}
+  var date=m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
+  var item={name:name,date:date,note:note};
+
+  if(orig&&orig!==name)DATA.birthdays=DATA.birthdays.filter(function(x){return x.name!==orig;});
+  var ex=DATA.birthdays.findIndex(function(x){return x.name===name;});
+  if(ex>=0)DATA.birthdays[ex]=item;else DATA.birthdays.push(item);
+  saveLocal();renderBirthdays();closeModal('modal-birthday');
+  toast('\u2705 已儲存 '+name+' 的生日');
+  syncToServer();
+}
+function confirmDeleteBday(){
+  var name=document.getElementById('bday-orig-name').value;
+  showConfirm('確定要刪除 '+name+' 的生日嗎？',function(){
+    DATA.birthdays=DATA.birthdays.filter(function(x){return x.name!==name;});
+    saveLocal();renderBirthdays();closeModal('modal-birthday');closeConfirm();
+    toast('\u{1F5D1}\uFE0F 已刪除 '+name+' 生日');
+    syncToServer();
+  });
+}
+
+// ===== Confirm =====
+function showConfirm(msg,cb){
+  document.getElementById('confirm-msg').textContent=msg;
+  document.getElementById('confirm-yes').onclick=cb;
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('show');}
+
+// ===== Close on overlay =====
+['modal-reminder','modal-birthday','confirm-overlay'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===this){
+      if(id==='confirm-overlay')closeConfirm();else closeModal(id);
+    }
+  });
+});
+
+// ===== Notifications (Web Push) =====
+var VAPID_PUBLIC_KEY = 'BKDBgkEdgGqLpKcFrTFUugngudXFHo50WwlVaKjYjK9Q-oBBM9z5BWyF6eQ_sbgkCGliShPy8C1asZM3oSHWtTQ';
+
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  var base64 = base64String.replace(/-/g, '+').replace(/_/g, '/') + padding;
+  var rawData = atob(base64);
+  var output = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
+  return output;
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  return navigator.serviceWorker.register('sw.js').then(function(reg){
+    console.log('SW registered', reg.scope);
+    return reg;
+  }).catch(function(e){
+    console.log('SW register failed', e);
+    return null;
+  });
+}
+
+function enableNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    toast('此瀏覽器唔支援推播，請用 Chrome/Edge 或 iOS 16.4+ 加到主畫面');
+    renderNotifBanner();
+    return;
+  }
+  registerServiceWorker().then(function(reg){
+    if (!reg) { toast('Service Worker 註冊失敗'); return; }
+    return Notification.requestPermission().then(function(perm){
+      if (perm !== 'granted') {
+        toast('通知權限被拒絕');
+        renderNotifBanner();
+        return;
+      }
+      return subscribePush(reg);
+    });
+  }).catch(function(e){
+    console.log('enable notif error', e);
+    toast('啟用失敗：' + (e && e.message ? e.message : e));
+  });
+}
+
+function subscribePush(reg) {
+  return reg.pushManager.getSubscription().then(function(existing){
+    if (existing) return existing;
+    return reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+  }).then(function(sub){
+    if (!sub) { toast('訂閱失敗'); return; }
+    saveSubscription(sub);
+    toast('✅ 通知已啟用');
+    renderNotifBanner();
+  }).catch(function(e){
+    console.log('subscribe failed', e);
+    if (e && e.message && e.message.indexOf('user is not') >= 0) {
+      toast('iOS 請先「加到主畫面」再啟用通知');
+    } else if (e && e.message && e.message.indexOf('permission') >= 0) {
+      toast('請先允許通知權限');
+    } else {
+      toast('訂閱失敗：' + (e && e.message ? e.message : e));
+    }
+    renderNotifBanner();
+  });
+}
+
+function saveSubscription(sub) {
+  if (!DATA.pushSubscriptions) DATA.pushSubscriptions = [];
+  var raw = sub.toJSON ? sub.toJSON() : sub;
+  var exists = DATA.pushSubscriptions.find(function(s){ return s.endpoint === raw.endpoint; });
+  if (!exists) {
+    DATA.pushSubscriptions.push({
+      endpoint: raw.endpoint,
+      keys: raw.keys,
+      createdAt: new Date().toISOString()
+    });
+    syncToServer();
+  }
+}
+
+function removeSubscription(endpoint) {
+  if (!DATA.pushSubscriptions) return;
+  DATA.pushSubscriptions = DATA.pushSubscriptions.filter(function(s){ return s.endpoint !== endpoint; });
+  syncToServer();
+}
+
+function disableNotifications() {
+  if (!('serviceWorker' in navigator)) { renderNotifBanner(); return; }
+  navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription().then(function(sub){
+      if (sub) {
+        return sub.unsubscribe().then(function(){ removeSubscription(sub.endpoint); });
+      }
+    }).catch(function(){}).then(function(){
+      renderNotifBanner();
+      toast('已取消通知');
+    });
+  }).catch(function(){ renderNotifBanner(); });
+}
+
+function renderNotifBanner() {
+  var banner = document.getElementById('notif-banner');
+  var btn = document.getElementById('notif-btn');
+  var sub = document.getElementById('notif-sub');
+  var bell = document.getElementById('bell-btn');
+  if (!banner) return;
+  var enabled = DATA.pushSubscriptions && DATA.pushSubscriptions.length > 0;
+  var permGranted = ('Notification' in window && Notification.permission === 'granted');
+  var supported = ('serviceWorker' in navigator) && ('PushManager' in window);
+  if (enabled && permGranted) {
+    banner.className = 'notif-banner ok';
+    btn.textContent = '已啟用';
+    btn.onclick = function(){ showConfirm('取消網頁通知訂閱？', function(){ disableNotifications(); closeConfirm(); }); };
+    sub.textContent = '裝置已訂閱，手機/iPad 直接收提醒';
+    if (bell) bell.classList.add('on');
+  } else if (!supported) {
+    banner.className = 'notif-banner err';
+    btn.textContent = '唔支援';
+    btn.onclick = null;
+    sub.textContent = '此瀏覽器唔支援，請用 Chrome/Edge 或 iOS 16.4+';
+    if (bell) bell.classList.remove('on');
+  } else {
+    banner.className = 'notif-banner';
+    btn.textContent = '啟用';
+    btn.onclick = enableNotifications;
+    sub.textContent = '開啟後手機/iPad 直接收提醒，唔使靠 WhatsApp';
+    if (bell) bell.classList.remove('on');
+  }
+}
+
+function openNotifPanel() {
+  if (DATA.pushSubscriptions && DATA.pushSubscriptions.length > 0) {
+    showConfirm('取消網頁通知訂閱？', function(){ disableNotifications(); closeConfirm(); });
+  } else {
+    enableNotifications();
+  }
+}
+
+// ----- Due reminder checker (in-app, when app open) -----
+function getNextOccurrence(r) {
+  var now = new Date();
+  var parts = (r.time || '09:00').split(':');
+  var hh = parseInt(parts[0], 10) || 0;
+  var mm = parseInt(parts[1], 10) || 0;
+  function at(date) { var d = new Date(date); d.setHours(hh, mm, 0, 0); return d; }
+  if (!r.repeat || r.repeat === 'none') {
+    return at(new Date(r.date + 'T00:00:00'));
+  }
+  if (r.repeat === 'daily') {
+    var t = at(new Date());
+    if (t <= now) t.setDate(t.getDate() + 1);
+    return t;
+  }
+  if (r.repeat === 'weekly') {
+    var days = r.repeatDays || [];
+    for (var i = 0; i < 14; i++) {
+      var d = new Date(); d.setDate(d.getDate() + i);
+      if (days.indexOf(d.getDay()) >= 0) {
+        var cand = at(d);
+        if (cand > now) return cand;
+      }
+    }
+    return null;
+  }
+  if (r.repeat === 'monthly') {
+    var dom = r.repeatDayOfMonth || new Date(r.date).getDate();
+    for (var m = 0; m < 24; m++) {
+      var d2 = new Date(); d2.setMonth(d2.getMonth() + m);
+      var lastDay = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
+      d2.setDate(Math.min(dom, lastDay));
+      var cand2 = at(d2);
+      if (cand2 > now) return cand2;
+    }
+    return null;
+  }
+  return null;
+}
+
+function occKey(r, date) {
+  function p(n){ return (n < 10 ? '0' : '') + n; }
+  return r.id + '_' + date.getFullYear() + '-' + p(date.getMonth() + 1) + '-' + p(date.getDate()) + '_' + p(date.getHours()) + ':' + p(date.getMinutes());
+}
+
+function playNotifySound() {
+  try {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    var ctx = new Ctx();
+    function beep(freq, start, dur) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.001, ctx.currentTime + start);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur + 0.02);
+    }
+    beep(880, 0, 0.18);
+    beep(1100, 0.2, 0.22);
+    setTimeout(function(){ try { ctx.close(); } catch(e){} }, 700);
+  } catch (e) {}
+}
+
+function fireReminderNotification(r, when) {
+  var title = '⏰ ' + r.name;
+  var body = '';
+  if (r.time && r.time !== '00:00') body += '🕐 ' + r.time + '  ';
+  if (r.caregiver) body += '👤 ' + r.caregiver + '  ';
+  if (r.note) body += '📝 ' + r.note;
+  if (!body) body = '提醒時間到了';
+  playNotifySound();
+  if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch(e){} }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body: body, icon: 'icon-192.png', tag: r.id, vibrate: [200,100,200] }); } catch(e){}
+  }
+  toast('⏰ ' + r.name + (r.time && r.time !== '00:00' ? ' @' + r.time : ''));
+  // mark as handled so GitHub Actions won't also Web-Push the same occurrence
+  var key = occKey(r, when);
+  r._lastPushKey = key;
+  syncToServer();
+}
+
+function checkDueReminders() {
+  if (!DATA.reminders) return;
+  var now = Date.now();
+  DATA.reminders.forEach(function(r){
+    var next = getNextOccurrence(r);
+    if (!next) return;
+    var diff = next.getTime() - now;
+    // due within next 25s (or up to 5s in the past)
+    if (diff >= -5000 && diff <= 25000) {
+      var key = occKey(r, next);
+      var last = localStorage.getItem('notif_' + key);
+      if (!last) {
+        localStorage.setItem('notif_' + key, String(now));
+        fireReminderNotification(r, next);
+      }
+    }
+  });
+}
+
+// ===== Auto sync =====
+setInterval(function(){ syncFromServer(); }, 30000);
+setInterval(function(){ checkDueReminders(); }, 20000);
+
+// ===== INIT =====
+function init(){
+  populateTimeSelects();
+  loadLocal();
+  renderAll();
+  renderNotifBanner();
+  registerServiceWorker();
+  syncFromServer();
+  checkDueReminders();
+}
+init();
+</script>
+</body>
+</html>
