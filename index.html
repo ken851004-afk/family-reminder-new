@@ -728,6 +728,16 @@ function isInstalledPWA() {
          (window.matchMedia && window.matchMedia('(display-mode: window-controls-overlay)').matches);
 }
 
+function waitForController(timeoutMs) {
+  if (navigator.serviceWorker.controller) return Promise.resolve();
+  return new Promise(function(resolve){
+    var done = false;
+    function finish(){ if (!done) { done = true; resolve(); } }
+    setTimeout(finish, timeoutMs || 2500);
+    navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+  });
+}
+
 function enableNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     toast('此瀏覽器唔支援推播，請用 Chrome/Edge，或 iOS 16.4+ 加到主畫面');
@@ -746,16 +756,16 @@ function enableNotifications() {
       renderNotifBanner();
       return;
     }
-    // 等 SW 真正 active 先 subscribe（首次 register 後要等 activate）
-    return registerServiceWorker().then(function(){ return navigator.serviceWorker.ready; });
-  }).then(function(reg){
-    if (!reg) { toast('Service Worker 未就緒'); renderNotifBanner(); return; }
-    return subscribePush(reg);
+    // 等 SW active 且控制頁面先 subscribe（iOS standalone 首次開 controller 係 null → subscribe 彈 load failed）
+    return registerServiceWorker()
+      .then(function(reg){ return navigator.serviceWorker.ready.then(function(){ return reg; }); })
+      .then(function(reg){ return waitForController(2500).then(function(){ return reg; }); })
+      .then(function(reg){ return subscribePush(reg); });
   }).catch(function(e){
     console.log('enable notif error', e);
     var msg = (e && e.message) ? e.message : String(e);
-    if (/user is not|not registered|no active|standalone|push/i.test(msg)) {
-      toast('iOS 請先「加到主畫面」再啟用通知');
+    if (/user is not|not registered|no active|standalone|push|load failed/i.test(msg)) {
+      toast('iOS：請完全關 App（上掃熄佢）再從主畫面重開，並確認已登入 iCloud 同開啟推播，然後再撳啟用');
     } else {
       toast('啟用失敗：' + msg);
     }
@@ -779,8 +789,8 @@ function subscribePush(reg) {
   }).catch(function(e){
     console.log('subscribe failed', e);
     var msg = (e && e.message) ? e.message : String(e);
-    if (/user is not|not registered|no active|push/i.test(msg)) {
-      toast('iOS 請先「加到主畫面」再啟用通知');
+    if (/user is not|not registered|no active|push|load failed/i.test(msg)) {
+      toast('iOS：請完全關 App（上掃熄佢）再從主畫面重開，確認登入 iCloud 同開啟推播，再撳啟用通知');
     } else if (/permission/i.test(msg)) {
       toast('請先允許通知權限');
     } else {
@@ -976,6 +986,14 @@ function init(){
   renderAll();
   renderNotifBanner();
   registerServiceWorker();
+  // iOS standalone：首次開 standalone 時 SW 未控制頁面 → controller 係 null，subscribe 會 load failed
+  // 解決：發現無 controller 就 reload 一次（只一次），reload 後 SW 已 claim 頁面
+  if (isIOS() && isInstalledPWA() && !navigator.serviceWorker.controller && !sessionStorage.getItem('sw_ctrl_reload')) {
+    sessionStorage.setItem('sw_ctrl_reload', '1');
+    navigator.serviceWorker.ready.then(function(){
+      if (!navigator.serviceWorker.controller) location.reload();
+    });
+  }
   syncFromServer();
   checkDueReminders();
 }
