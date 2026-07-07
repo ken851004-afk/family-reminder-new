@@ -718,29 +718,53 @@ function registerServiceWorker() {
   });
 }
 
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function isInstalledPWA() {
+  return window.navigator.standalone === true ||
+         (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+         (window.matchMedia && window.matchMedia('(display-mode: window-controls-overlay)').matches);
+}
+
 function enableNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    toast('此瀏覽器唔支援推播，請用 Chrome/Edge 或 iOS 16.4+ 加到主畫面');
+    toast('此瀏覽器唔支援推播，請用 Chrome/Edge，或 iOS 16.4+ 加到主畫面');
     renderNotifBanner();
     return;
   }
-  registerServiceWorker().then(function(reg){
-    if (!reg) { toast('Service Worker 註冊失敗'); return; }
-    return Notification.requestPermission().then(function(perm){
-      if (perm !== 'granted') {
-        toast('通知權限被拒絕');
-        renderNotifBanner();
-        return;
-      }
-      return subscribePush(reg);
-    });
+  // iOS 必須先加到主畫面，否則 subscribe 必失敗
+  if (isIOS() && !isInstalledPWA()) {
+    toast('📱 iOS 請先「加到主畫面」：Safari → 分享掣 → 加到主畫面，再開 App 撳啟用通知');
+    renderNotifBanner();
+    return;
+  }
+  Notification.requestPermission().then(function(perm){
+    if (perm !== 'granted') {
+      toast('通知權限被拒絕，請允許後再試');
+      renderNotifBanner();
+      return;
+    }
+    // 等 SW 真正 active 先 subscribe（首次 register 後要等 activate）
+    return registerServiceWorker().then(function(){ return navigator.serviceWorker.ready; });
+  }).then(function(reg){
+    if (!reg) { toast('Service Worker 未就緒'); renderNotifBanner(); return; }
+    return subscribePush(reg);
   }).catch(function(e){
     console.log('enable notif error', e);
-    toast('啟用失敗：' + (e && e.message ? e.message : e));
+    var msg = (e && e.message) ? e.message : String(e);
+    if (/user is not|not registered|no active|standalone|push/i.test(msg)) {
+      toast('iOS 請先「加到主畫面」再啟用通知');
+    } else {
+      toast('啟用失敗：' + msg);
+    }
+    renderNotifBanner();
   });
 }
 
 function subscribePush(reg) {
+  if (!reg || !reg.pushManager) { toast('Push 唔可用，請重新整理頁面'); renderNotifBanner(); return Promise.resolve(); }
   return reg.pushManager.getSubscription().then(function(existing){
     if (existing) return existing;
     return reg.pushManager.subscribe({
@@ -754,12 +778,13 @@ function subscribePush(reg) {
     renderNotifBanner();
   }).catch(function(e){
     console.log('subscribe failed', e);
-    if (e && e.message && e.message.indexOf('user is not') >= 0) {
+    var msg = (e && e.message) ? e.message : String(e);
+    if (/user is not|not registered|no active|push/i.test(msg)) {
       toast('iOS 請先「加到主畫面」再啟用通知');
-    } else if (e && e.message && e.message.indexOf('permission') >= 0) {
+    } else if (/permission/i.test(msg)) {
       toast('請先允許通知權限');
     } else {
-      toast('訂閱失敗：' + (e && e.message ? e.message : e));
+      toast('訂閱失敗：' + msg);
     }
     renderNotifBanner();
   });
