@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>家庭提醒系統</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f0f2f5; color:#333; min-height:100vh; padding-bottom:80px; }
+
+.header { background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; padding:18px 16px 14px; }
+.header h1 { font-size:19px; font-weight:700; }
+.header p { font-size:11px; opacity:0.85; margin-top:2px; }
+.conn-status { display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; margin-top:4px; font-weight:500; }
+.conn-ok { background:rgba(52,211,153,0.3); color:#6ee7b7; }
+.conn-err { background:rgba(248,113,113,0.3); color:#fca5a5; }
+
+.tab-bar { display:flex; background:#fff; border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:99; }
+.tab-btn { flex:1; padding:11px; text-align:center; font-size:14px; font-weight:500; border:none; background:none; color:#888; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.tab-btn.active { color:#4f46e5; border-bottom-color:#4f46e5; font-weight:600; }
+
+.container { max-width:600px; margin:0 auto; padding:10px 13px; }
+.section-label { font-size:11px; font-weight:600; color:#999; padding:5px 2px; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px; }
+
+.card { background:#fff; border-radius:13px; padding:14px; margin-bottom:9px; box-shadow:0 1px 3px rgba(0,0,0,0.06); border-left:4px solid transparent; }
+.card-top { display:flex; align-items:flex-start; gap:9px; }
+.card-icon { font-size:24px; min-width:30px; text-align:center; padding-top:1px; }
+.card-body { flex:1; min-width:0; }
+.card-name { font-size:15px; font-weight:600; line-height:1.3; word-break:break-word; }
+.card-meta { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+.bdg { display:inline-block; font-size:10px; padding:2px 7px; border-radius:9px; font-weight:500; }
+.bdg-school { background:#dbeafe; color:#1d4ed8; }
+.bdg-class  { background:#fce7f3; color:#be185d; }
+.bdg-special{ background:#ffedd5; color:#c2410c; }
+.bdg-summer { background:#fef3c7; color:#b45309; }
+.bdg-routine{ background:#d1fae5; color:#065f46; }
+.bdg-repeat{ background:#ede9fe; color:#7c3aed; }
+.bdg-care   { background:#ede9fe; color:#6d28d9; }
+.card-date { font-size:12px; color:#666; margin-top:3px; }
+.card-note { font-size:12px; color:#555; background:#f9fafb; padding:4px 8px; border-radius:7px; margin-top:4px; word-break:break-word; }
+.card-actions { display:flex; gap:5px; margin-top:8px; justify-content:flex-end; }
+.btn-xs { font-size:11px; padding:4px 11px; border-radius:12px; border:none; cursor:pointer; font-weight:500; }
+.btn-edit { background:#eff6ff; color:#2563eb; }
+.btn-del  { background:#fef2f2; color:#dc2626; }
+.urgent { border-left-color:#ef4444; background:#fff5f5; }
+.soon   { border-left-color:#f59e0b; background:#fffbeb; }
+
+.bday-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.bday-card { background:#fff; border-radius:13px; padding:13px; box-shadow:0 1px 3px rgba(0,0,0,0.06); text-align:center; position:relative; }
+.bday-card.today { background:#fff7ed; border:2px solid #f97316; }
+.bday-emoji { font-size:28px; }
+.bday-name  { font-size:13px; font-weight:600; margin-top:2px; }
+.bday-date  { font-size:12px; color:#888; }
+.bday-note  { font-size:11px; color:#aaa; }
+.bday-edit  { position:absolute; top:6px; right:6px; background:none; border:none; font-size:13px; cursor:pointer; opacity:0.4; padding:2px; }
+
+.modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:200; justify-content:center; align-items:flex-end; }
+.modal-overlay.show { display:flex; }
+.modal-sheet { background:#fff; border-radius:20px 20px 0 0; width:100%; max-width:600px; max-height:90vh; overflow-y:auto; padding:18px 16px 28px; animation:slideUp 0.22s ease-out; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle { width:36px; height:4px; background:#d1d5db; border-radius:2px; margin:0 auto 14px; }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:14px; text-align:center; }
+.form-group { margin-bottom:13px; }
+.form-label { display:block; font-size:12px; font-weight:600; color:#666; margin-bottom:4px; }
+.form-input,.form-select,.form-textarea { width:100%; padding:10px 13px; border:1.5px solid #e5e7eb; border-radius:10px; font-size:14px; font-family:inherit; background:#f9fafb; transition:border-color 0.2s; }
+.form-input:focus,.form-select:focus,.form-textarea:focus { outline:none; border-color:#4f46e5; background:#fff; }
+.form-textarea { min-height:56px; resize:vertical; }
+.form-row { display:flex; gap:8px; }
+.form-row>* { flex:1; }
+.form-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%23999'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:30px; }
+.btn { padding:10px 18px; border-radius:10px; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s; width:100%; margin-top:8px; }
+.btn:active { transform:scale(0.97); }
+.btn-primary { background:#4f46e5; color:#fff; }
+.btn-outline { background:#fff; color:#4f46e5; border:2px solid #4f46e5; }
+.btn-danger  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+
+.repeat-section { background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:8px; }
+.repeat-days { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+.repeat-day-btn { padding:5px 10px; border-radius:8px; border:1.5px solid #e5e7eb; background:#fff; font-size:12px; cursor:pointer; }
+.repeat-day-btn.active { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+
+.fab { position:fixed; bottom:20px; right:18px; width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border:none; font-size:26px; cursor:pointer; box-shadow:0 4px 16px rgba(79,70,229,0.4); z-index:150; display:flex; align-items:center; justify-content:center; }
+.fab:active { transform:scale(0.9); }
+#fab-bday { display:none; }
+
+.toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:#1e1e2e; color:#fff; padding:9px 18px; border-radius:18px; font-size:13px; z-index:300; opacity:0; transition:opacity 0.25s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+
+.confirm-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:250; justify-content:center; align-items:center; }
+.confirm-overlay.show { display:flex; }
+.confirm-box { background:#fff; border-radius:16px; padding:22px 20px; width:275px; text-align:center; }
+.confirm-box p { font-size:15px; margin-bottom:14px; line-height:1.4; }
+.confirm-box .row { display:flex; gap:8px; }
+.confirm-box .row button { flex:1; }
+
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.empty { text-align:center; padding:40px 16px; color:#bbb; }
+.empty-icon { font-size:40px; margin-bottom:6px; }
+.loading { text-align:center; padding:30px; color:#999; font-size:14px; }
+
+.setup-banner { background:#fef3c7; border:1.5px solid #f59e0b; border-radius:12px; padding:14px; margin-bottom:12px; font-size:13px; }
+.setup-banner strong { display:block; margin-bottom:4px; color:#92400e; }
+.setup-banner input { width:100%; padding:8px 10px; border:1px solid #fcd34d; border-radius:8px; font-size:13px; margin-top:6px; font-family:monospace; }
+.setup-banner button { margin-top:6px; padding:7px 14px; border-radius:8px; border:none; background:#f59e0b; color:#fff; font-weight:600; cursor:pointer; font-size:13px; }
+
+.toolbar { display:flex; gap:6px; margin-bottom:10px; }
+.toolbar button { flex:1; padding:7px 10px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-size:11px; cursor:pointer; color:#555; }
+.toolbar button:hover { background:#f9fafb; }
+</style>
+<script src="https://beacon.cdn.qq.com/sdk/4.5.9/beacon_web.min.js"></script>
+<script>
+(function(){
+  try{
+    var beacon=new BeaconAction({
+      appkey:'0WEB06U85YBSLJNL',
+      versionCode:'1.0.0',
+      channelID:'share',
+      delay:1000,
+      sessionDuration:30*60*1000,
+      isOversea:false,
+      needReportRqdEvent:false
+    });
+    beacon.onDirectUserAction('preview_page_view',{
+      'url':location.href,
+      'referrer':document.referrer,
+      'title':document.title,
+      'sandbox_id':'b09ae3a72dd54362b88c8d1e8cd383b9'
+    });
+  }catch(e){}
+})();
+</script></head>
+<body>
+
+<div class="header">
+  <h1>🏠 家庭提醒系統</h1>
+  <p id="header-sub">請回答我們這一家</p>
+  <span class="conn-status conn-err" id="conn-badge">⏳ 連接中...</span>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('reminders')">📋 提醒</button>
+  <button class="tab-btn" onclick="switchTab('birthdays')">🎂 生日</button>
+</div>
+
+<div class="container">
+
+  <div class="setup-banner" id="setup-banner" style="display:none">
+    <strong>⚙️ 設定伺服器連接</strong>
+    輸入伺服器位址以連接資料庫（由管理員提供）
+    <input type="text" id="server-ip-input" placeholder="例如：192.168.0.125:3747" autocomplete="off">
+    <button onclick="saveServerIP()">儲存連接</button>
+    <div style="font-size:11px;color:#888;margin-top:4px;">同一 WiFi 下輸入電腦 IP:3747。無連接時會使用本機暫存。</div>
+  </div>
+
+  <div class="tab-content active" id="tab-reminders">
+    <div class="toolbar">
+      <button onclick="exportData()">📤 匯出備份</button>
+      <button onclick="document.getElementById('import-file').click()">📥 匯入資料</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div id="reminder-list"><div class="loading">⏳ 載入中...</div></div>
+  </div>
+
+  <div class="tab-content" id="tab-birthdays">
+    <div class="bday-grid" id="birthday-grid"><div class="loading" style="grid-column:1/-1">⏳ 載入中...</div></div>
+  </div>
+
+</div>
+
+<button class="fab" id="fab-add" onclick="openAddModal()" title="新增提醒">+</button>
+<button class="fab" id="fab-bday" onclick="openBdayAdd()" title="新增生日">🎂</button>
+
+<!-- Reminder Modal -->
+<div class="modal-overlay" id="modal-reminder">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">新增提醒</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-group"><label class="form-label">事項名稱 *</label><input class="form-input" id="form-name" placeholder="例如：鋼琴班"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" type="date" id="form-date"></div>
+      <div class="form-group"><label class="form-label">時間</label><input class="form-input" type="time" id="form-time" value="09:00"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">類別</label>
+        <select class="form-select" id="form-category">
+          <option value="school">🏫 學校面試</option>
+          <option value="summer">☀️ 暑期安排</option>
+          <option value="routine">📅 恆常日程</option>
+          <option value="class">🎨 興趣班</option>
+          <option value="special">⭐ 特別日子</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">照顧者</label>
+        <select class="form-select" id="form-caregiver">
+          <option value="">無指定</option>
+          <option value="ALL">👥 全部人</option>
+          <option value="EPPIE">EPPIE</option>
+          <option value="KEN">KEN</option>
+          <option value="COFFE">COFFE</option>
+          <option value="Kenny Yam">Kenny Yam</option>
+          <option value="Rosanna Mok">Rosanna Mok</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🔁 重複</label>
+      <select class="form-select" id="form-repeat" onchange="onRepeatChange()">
+        <option value="none">一次性（不重複）</option>
+        <option value="daily">每日</option>
+        <option value="weekly">每週（指定星期）</option>
+        <option value="monthly">每月（指定日期）</option>
+      </select>
+      <div id="repeat-weekly" style="display:none; margin-top:6px;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">選擇星期：</div>
+        <div class="repeat-days" id="repeat-days">
+          <button type="button" class="repeat-day-btn" data-day="1" onclick="toggleDay(this)">一</button>
+          <button type="button" class="repeat-day-btn" data-day="2" onclick="toggleDay(this)">二</button>
+          <button type="button" class="repeat-day-btn" data-day="3" onclick="toggleDay(this)">三</button>
+          <button type="button" class="repeat-day-btn" data-day="4" onclick="toggleDay(this)">四</button>
+          <button type="button" class="repeat-day-btn" data-day="5" onclick="toggleDay(this)">五</button>
+          <button type="button" class="repeat-day-btn" data-day="6" onclick="toggleDay(this)">六</button>
+          <button type="button" class="repeat-day-btn" data-day="0" onclick="toggleDay(this)">日</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">備註</label><textarea class="form-textarea" id="form-note" placeholder="例如：帶面試信"></textarea></div>
+    <div class="form-group"><label class="form-label">📍 地址</label><input class="form-input" id="form-address" placeholder="例如：尖沙咀麼地道 66 號"></div>
+    <button class="btn btn-primary" onclick="saveReminder()">💾 儲存</button>
+    <button class="btn btn-danger" id="edit-del-btn" style="display:none" onclick="confirmDeleteReminder()">🗑️ 刪除此提醒</button>
+    <button class="btn btn-outline" onclick="closeModal('modal-reminder')">取消</button>
+  </div>
+</div>
+
+<!-- Birthday Modal -->
+<div class="modal-overlay" id="modal-birthday">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">生日設定</div>
+    <input type="hidden" id="bday-orig-name">
+    <div class="form-group"><label class="form-label">姓名 *</label><input class="form-input" id="bday-name" placeholder="例如：KEN"></div>
+    <div class="form-group"><label class="form-label">生日（月-日）*</label><input class="form-input" id="bday-date" placeholder="MM-DD 例如 08-15" maxlength="5"></div>
+    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="bday-note" placeholder="例如：農曆七月初五"></div>
+    <button class="btn btn-primary" onclick="saveBirthday()">💾 儲存</button>
+    <button class="btn btn-danger" id="bday-del-btn" style="display:none" onclick="confirmDeleteBday()">🗑️ 刪除生日</button>
+    <button class="btn btn-outline" onclick="closeModal('modal-birthday')">取消</button>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button class="btn btn-outline" style="margin:0" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" style="margin:0" id="confirm-yes">確定刪除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== CONFIG =====
+var CAT = {
+  school:{icon:'🏫',name:'學校面試',bdg:'bdg-school'},
+  class:{icon:'🎨',name:'興趣班',bdg:'bdg-class'},
+  special:{icon:'⭐',name:'特別日子',bdg:'bdg-special'},
+  summer:{icon:'☀️',name:'暑期安排',bdg:'bdg-summer'},
+  routine:{icon:'📅',name:'恆常日程',bdg:'bdg-routine'}
+};
+var CAT_ORDER = ['school','summer','routine','class','special'];
+
+// ===== DATA =====
+var DATA = { reminders: [], birthdays: [] };
+var API_BASE = null;
+var API_ONLINE = false;
+var GH_ONLINE = false;
+
+// GitHub API — read is public (no token needed), write needs token
+var GITHUB_REPO = 'ken851004-afk/family-reminder-new';
+var GITHUB_API_URL = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/data.json';
+
+// Token stored in localStorage (user inputs once, saved for future use)
+var GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
+
+// UTF-8 safe base64 encode/decode (fix Chinese garbled text)
+function utf8ToBase64(str) {
+  var bytes = new TextEncoder().encode(str);
+  var bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function base64ToUtf8(b64) {
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+// ===== GitHub API: READ (public, no token needed) =====
+function ghApiFetch() {
+  return fetch(GITHUB_API_URL + '?t=' + Date.now(), {
+    headers: {
+      'Accept': 'application/vnd.github.v3+json'
+    }
+  }).then(function(r) {
+    if (!r.ok) throw new Error('GH API HTTP ' + r.status);
+    return r.json();
+  }).then(function(gh) {
+    _ghSha = gh.sha; // save SHA for future writes
+    var content = gh.content.replace(/\n/g, '');
+    var json = base64ToUtf8(content);
+    return JSON.parse(json);
+  });
+}
+
+// ===== GitHub API: WRITE (needs token) =====
+var _ghSha = null; // latest SHA from last read
+
+// Helper: ensure we have a token (ask user if not)
+function ensureToken() {
+  GITHUB_TOKEN = localStorage.getItem('gh_token') || '';
+  if (GITHUB_TOKEN) return Promise.resolve();
+  return new Promise(function(resolve, reject) {
+    var tok = prompt('請輸入 GitHub Personal Access Token (需要 repo 權限):\n\n獲取 Token: https://github.com/settings/tokens');
+    if (!tok) { reject(new Error('需要 Token 才能寫入資料')); return; }
+    tok = tok.trim();
+    GITHUB_TOKEN = tok;
+    localStorage.setItem('gh_token', tok);
+    resolve();
+  });
+}
+
+function ghApiWrite(data) {
+  return ensureToken().then(function() {
+    var content = utf8ToBase64(JSON.stringify(data, null, 2));
+    var body = {
+      message: 'Web update ' + new Date().toISOString().replace('T',' ').substring(0,19),
+      content: content,
+      branch: 'master'
+    };
+    if (_ghSha) body.sha = _ghSha;
+    return fetch(GITHUB_API_URL, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + GITHUB_TOKEN,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    }).then(function(r) {
+      if (!r.ok) throw new Error('GH write HTTP ' + r.status);
+      return r.json();
+    }).then(function(gh) {
+      _ghSha = gh.content.sha;
+      return gh;
+    });
+  });
+}
+
+// ===== API Helper (local server, fallback) =====
+function apiFetch(path, opts) {
+  if (!API_BASE) return Promise.reject(new Error('no api'));
+  opts = opts || {};
+  opts.headers = opts.headers || {};
+  return fetch(API_BASE.replace(/\/+$/,'') + path, opts).then(function(r){
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  });
+}
+
+// ===== Persistence (localStorage) =====
+var LS_KEY = 'family-reminder-data';
+var LS_API_KEY = 'family-api-url';
+var LS_TS_KEY = 'family-last-sync';
+
+function loadLocal() {
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      DATA = JSON.parse(raw);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function saveLocal() {
+  localStorage.setItem(LS_KEY, JSON.stringify(DATA));
+  localStorage.setItem(LS_TS_KEY, Date.now().toString());
+}
+
+function getApiBase() {
+  var stored = localStorage.getItem(LS_API_KEY);
+  if (stored) return stored.replace(/\/+$/,'');
+  return null;
+}
+
+function saveServerIP() {
+  var val = document.getElementById('server-ip-input').value.trim();
+  if (!val) { toast('請輸入伺服器位址'); return; }
+  if (!val.startsWith('http')) val = 'http://' + val;
+  localStorage.setItem(LS_API_KEY, val);
+  API_BASE = val;
+  document.getElementById('setup-banner').style.display = 'none';
+  syncFromGitHub(); // Always sync from GitHub API
+}
+
+// ===== Sync =====
+// GitHub API is the PRIMARY data source — instant, works from anywhere
+// Local API server is a fallback write path
+var _syncedFromGH = false;
+var _lastLocalChange = 0;
+
+function markLocalChange() {
+  _lastLocalChange = Date.now();
+  schedulePush(); // schedule a push to GitHub in 3s
+}
+
+function syncFromGitHub() {
+  ghApiFetch().then(function(d) {
+    if (!d || !d.reminders) throw new Error('invalid data');
+    // Merge: keep local items if they're newer than GitHub
+    if (_lastLocalChange && _lastLocalChange > (Date.now() - 300000)) {
+      // Local change within last 5 min — push TO GitHub instead of pulling
+      console.log('[GH] Local changes pending, pushing to GitHub...');
+      pushToGitHub();
+      return;
+    }
+    DATA = d;
+    _syncedFromGH = true;
+    GH_ONLINE = true;
+    saveLocal();
+    setConnStatus(true);
+    renderAll();
+    console.log('[GH] Synced from GitHub API (' + DATA.reminders.length + ' reminders)');
+  }).catch(function(e) {
+    GH_ONLINE = false;
+    console.log('[GH] API unreachable, keeping local data:', e.message);
+  });
+}
+
+// Push current DATA to GitHub API
+function pushToGitHub() {
+  ghApiWrite(DATA).then(function() {
+    console.log('[GH] Pushed local changes to GitHub');
+    _lastLocalChange = 0;
+    GH_ONLINE = true;
+    saveLocal();
+    setConnStatus(true);
+  }).catch(function(e) {
+    console.log('[GH] Failed to push to GitHub:', e.message);
+  });
+}
+
+function syncToServer() {
+  if (!API_ONLINE) return;
+  apiFetch('/data', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(DATA)
+  }).catch(function(){});
+}
+
+function setConnStatus(ok, ghOnly) {
+  var el = document.getElementById('conn-badge');
+  if (ok) { el.textContent = '☁️ 已同步雲端'; el.className = 'conn-status conn-ok'; }
+  else { el.textContent = '💾 本機暫存'; el.className = 'conn-status conn-err'; }
+}
+
+// ===== Import/Export =====
+function exportData() {
+  var blob = new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'family-reminders-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('📤 已匯出備份檔案');
+}
+
+function importData(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try {
+      var d = JSON.parse(ev.target.result);
+      if (!d.reminders) { toast('❌ 格式不正確'); return; }
+      DATA = d;
+      saveLocal();
+      pushToGitHub();
+      renderAll();
+      toast('✅ 已匯入 ' + (d.reminders||[]).length + ' 項提醒');
+    } catch(err) { toast('❌ JSON 格式錯誤'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ===== Helpers =====
+function uid() { return 'r' + Date.now() + Math.random().toString(36).slice(2,5); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function getDays(dateStr) {
+  var t = new Date(); t.setHours(0,0,0,0);
+  var d = new Date(dateStr+'T00:00:00');
+  return Math.ceil((d-t)/86400000);
+}
+function getRepeatText(r) {
+  if (!r||r.repeat==='none'||!r.repeat) return '';
+  if (r.repeat==='daily') return '每日';
+  if (r.repeat==='weekly') {
+    var dn=['日','一','二','三','四','五','六'];
+    return '每週'+(r.repeatDays||[]).map(function(d){return dn[d];}).join('、');
+  }
+  if (r.repeat==='monthly') return '每月'+(r.repeatDayOfMonth||'??')+'日';
+  return '';
+}
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);
+}
+
+// ===== Tab =====
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(function(b,i){
+    b.classList.toggle('active',(i===0&&tab==='reminders')||(i===1&&tab==='birthdays'));
+  });
+  document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('fab-add').style.display=tab==='reminders'?'flex':'none';
+  document.getElementById('fab-bday').style.display=tab==='birthdays'?'flex':'none';
+}
+
+// ===== Render =====
+function renderAll(){ renderReminders(); renderBirthdays(); }
+
+function renderReminders(){
+  var c=document.getElementById('reminder-list');
+
+  // Auto-delete: remove one-time items whose date was YESTERDAY
+  // Run this check on every render (safe: only removes yesterday's items, not today's)
+  if (DATA.reminders && DATA.reminders.length) {
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var yestStr = yesterday.getFullYear() + '-' +
+      String(yesterday.getMonth()+1).padStart(2,'0') + '-' +
+      String(yesterday.getDate()).padStart(2,'0');
+
+    var before = DATA.reminders.length;
+    DATA.reminders = DATA.reminders.filter(function(r) {
+      // Keep if it's a recurring item
+      if (r.repeat && r.repeat !== 'none') return true;
+      // Keep if date is today or in the future
+      if (r.date > yestStr) return true;
+      // Delete: one-time item whose date <= yesterday
+      return false;
+    });
+    var removed = before - DATA.reminders.length;
+    if (removed > 0) {
+      markLocalChange();
+      saveLocal();
+      pushToGitHub();
+      console.log('[Auto-clean] Removed ' + removed + ' expired one-time item(s)');
+    }
+  }
+
+  if(!DATA.reminders||!DATA.reminders.length){
+    c.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>暫無提醒事項<br><small>按右下角 + 新增</small></p></div>';return;
+  }
+  // Sort by date ascending, then by category order
+  var sorted=DATA.reminders.slice().sort(function(a,b){
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    // Same date: sort by CAT_ORDER
+    var ai=CAT_ORDER.indexOf(a.category); if(ai<0)ai=99;
+    var bi=CAT_ORDER.indexOf(b.category); if(bi<0)bi=99;
+    return ai-bi;
+  });
+  var html='';
+  var lastDate='';
+  var lastCat='';
+  sorted.forEach(function(r){
+    // Date header
+    if (r.date !== lastDate) {
+      lastDate = r.date;
+      lastCat = '';
+      var days=getDays(r.date);
+      var dateLabel = '📅 ' + r.date;
+      if(days>=0&&days<=7){ dateLabel += ' · '+(days===0?'🔴 今日':days===1?'🟡 聽日':'🟢 '+days+'日後'); }
+      if(days<0) dateLabel += ' · ⚫ 已過期';
+      html+='<div class="section-label" style="font-size:13px;color:#4f46e5;font-weight:700;margin-top:10px;">'+dateLabel+'</div>';
+    }
+    // Category sub-header within same date
+    if (r.category !== lastCat) {
+      lastCat = r.category;
+      html+='<div class="section-label" style="margin-left:8px;">'+(CAT[r.category]?CAT[r.category].icon:'📌')+' '+(CAT[r.category]?CAT[r.category].name:r.category)+'</div>';
+    }
+    var days=getDays(r.date);
+    var urg=(days>=0&&days<=1)?((days===0)?'urgent':'soon'):'';
+    var rt=getRepeatText(r);
+    html+='<div class="card '+urg+'">';
+    html+='<div class="card-top">';
+    html+='<div class="card-icon">'+(CAT[r.category]?CAT[r.category].icon:'📌')+'</div>';
+    html+='<div class="card-body">';
+    html+='<div class="card-name">'+esc(r.name)+'</div>';
+    html+='<div class="card-meta">';
+    if(r.caregiver){
+      if(r.caregiver === 'ALL') {
+        html+='<span class="bdg bdg-care">👥 全部人</span>';
+      } else {
+        html+='<span class="bdg bdg-care">👤 '+esc(r.caregiver)+'</span>';
+      }
+    }
+    if(rt)html+='<span class="bdg bdg-repeat">🔁 '+rt+'</span>';
+    if(r.time&&r.time!=='00:00')html+='<span class="bdg" style="background:#f3f4f6;color:#666;">⏰ '+r.time+'</span>';
+    html+='</div>';
+    if(r.note)html+='<div class="card-note">📝 '+esc(r.note)+'</div>';
+    if(r.address)html+='<div class="card-note">📍 '+esc(r.address)+'</div>';
+    html+='<div class="card-actions">';
+    html+='<button class="btn-xs btn-edit" onclick="openEditModal(\''+esc(r.id)+'\')">✏️ 編輯</button>';
+    html+='<button class="btn-xs btn-del" onclick="quickDeleteReminder(\''+esc(r.id)+'\',\''+esc(r.name)+'\')">🗑</button>';
+    html+='</div></div></div></div>';
+  });
+  c.innerHTML=html;
+}
+
+function renderBirthdays(){
+  var g=document.getElementById('birthday-grid');
+  if(!DATA.birthdays||!DATA.birthdays.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1"><p>未有設定生日</p></div>';return;
+  }
+  var now=new Date();
+  var today=(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0');
+  var sorted=DATA.birthdays.slice().sort(function(a,b){
+    if(a.date==='??-??')return 1;if(b.date==='??-??')return -1;
+    return a.date.localeCompare(b.date);
+  });
+  var html='';
+  sorted.forEach(function(b){
+    var isToday=b.date===today;
+    html+='<div class="bday-card'+(isToday?' today':'')+'">';
+    html+='<button class="bday-edit" onclick="openBdayEdit(\''+esc(b.name)+'\')">✏️</button>';
+    html+='<div class="bday-emoji">'+(isToday?'🎉':'🎂')+'</div>';
+    html+='<div class="bday-name">'+esc(b.name)+'</div>';
+    html+='<div class="bday-date">'+b.date+'</div>';
+    if(b.note)html+='<div class="bday-note">'+esc(b.note)+'</div>';
+    html+='</div>';
+  });
+  g.innerHTML=html;
+}
+
+// ===== Repeat =====
+function onRepeatChange(){
+  document.getElementById('repeat-weekly').style.display=document.getElementById('form-repeat').value==='weekly'?'block':'none';
+}
+function toggleDay(btn){btn.classList.toggle('active');}
+function getSelectedDays(){
+  var days=[];
+  document.querySelectorAll('#repeat-days .repeat-day-btn').forEach(function(b){
+    if(b.classList.contains('active'))days.push(parseInt(b.dataset.day));
+  });
+  return days;
+}
+function setSelectedDays(days){
+  document.querySelectorAll('#repeat-days .repeat-day-btn').forEach(function(b){
+    b.classList.toggle('active',days.indexOf(parseInt(b.dataset.day))>=0);
+  });
+}
+
+// ===== Modal: Reminder =====
+function resetRepeatFields(){
+  document.getElementById('form-repeat').value='none';
+  document.getElementById('repeat-weekly').style.display='none';
+  setSelectedDays([]);
+}
+function openAddModal(){
+  document.getElementById('modal-title').textContent='➕ 新增提醒';
+  document.getElementById('edit-id').value='';
+  document.getElementById('form-name').value='';
+  document.getElementById('form-date').value='';
+  document.getElementById('form-time').value='09:00';
+  document.getElementById('form-category').value='school';
+  document.getElementById('form-caregiver').value='';
+  document.getElementById('form-note').value='';
+  document.getElementById('form-address').value='';
+  resetRepeatFields();
+  document.getElementById('edit-del-btn').style.display='none';
+  document.getElementById('modal-reminder').classList.add('show');
+  setTimeout(function(){document.getElementById('form-name').focus();},300);
+}
+function openEditModal(id){
+  var r=DATA.reminders.find(function(x){return x.id===id;});
+  if(!r)return;
+  document.getElementById('modal-title').textContent='✏️ 編輯提醒';
+  document.getElementById('edit-id').value=r.id;
+  document.getElementById('form-name').value=r.name;
+  document.getElementById('form-date').value=r.date;
+  document.getElementById('form-time').value=r.time||'09:00';
+  document.getElementById('form-category').value=r.category;
+  document.getElementById('form-caregiver').value=r.caregiver||'';
+  document.getElementById('form-note').value=r.note||'';
+  document.getElementById('form-address').value=r.address||'';
+  document.getElementById('form-repeat').value=r.repeat||'none';
+  onRepeatChange();
+  if(r.repeat==='weekly'&&r.repeatDays)setSelectedDays(r.repeatDays);
+  document.getElementById('edit-del-btn').style.display='block';
+  document.getElementById('modal-reminder').classList.add('show');
+}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+function saveReminder(){
+  try {
+  var name=document.getElementById('form-name').value.trim();
+  var date=document.getElementById('form-date').value;
+  var time=document.getElementById('form-time').value||'09:00';
+  var category=document.getElementById('form-category').value;
+  var caregiver=document.getElementById('form-caregiver').value;
+  var note=document.getElementById('form-note').value.trim();
+  var address=document.getElementById('form-address').value.trim();
+  var repeat=document.getElementById('form-repeat').value;
+  var editId=document.getElementById('edit-id').value;
+  if(!name){toast('請輸入事項名稱');return;}
+  if(!date){toast('請選擇日期');return;}
+
+  // Ensure DATA.reminders is an array
+  if (!Array.isArray(DATA.reminders)) DATA.reminders = [];
+  if (!Array.isArray(DATA.birthdays)) DATA.birthdays = [];
+
+  var rd={repeat:repeat};
+  if(repeat==='weekly'){
+    var days=getSelectedDays();
+    if(!days.length){toast('請選擇至少一個星期');return;}
+    rd.repeatDays=days;
+  }
+  if(repeat==='monthly')rd.repeatDayOfMonth=new Date(date).getDate();
+
+  var payload=Object.assign({name,date,time,category,caregiver,note,address},rd);
+
+  if(editId){
+    var idx=DATA.reminders.findIndex(function(r){return r.id===editId;});
+    if(idx>=0)Object.assign(DATA.reminders[idx],payload);
+    markLocalChange();
+    saveLocal();
+    renderReminders();
+    closeModal('modal-reminder');
+    toast('✅ 已更新「'+name+'」');
+    pushToGitHub();
+  } else {
+    var item=Object.assign({id:uid(),notified:false},payload);
+    DATA.reminders.push(item);
+    markLocalChange();
+    saveLocal();
+    renderReminders();
+    closeModal('modal-reminder');
+    toast('✅ 已新增「'+name+'」');
+    pushToGitHub();
+  }
+  } catch(err) {
+    toast('❌ 儲存失敗: ' + err.message);
+    console.error('saveReminder error:', err);
+  }
+}
+
+var _delId=null;
+function confirmDeleteReminder(){
+  _delId=document.getElementById('edit-id').value;
+  var r=DATA.reminders.find(function(x){return x.id===_delId;});
+  showConfirm('確定要刪除「'+(r?r.name:'')+'」嗎？',function(){
+    DATA.reminders=DATA.reminders.filter(function(x){return x.id!==_delId;});
+    markLocalChange();
+    saveLocal();
+    renderReminders();
+    closeModal('modal-reminder');
+    closeConfirm();
+    toast('🗑️ 已刪除');
+    pushToGitHub();
+  });
+}
+function quickDeleteReminder(id,name){
+  showConfirm('確定要刪除「'+name+'」嗎？',function(){
+    DATA.reminders=DATA.reminders.filter(function(x){return x.id!==id;});
+    markLocalChange();
+    saveLocal();
+    renderReminders();
+    closeConfirm();
+    toast('🗑️ 已刪除');
+    pushToGitHub();
+  });
+}
+
+// ===== Modal: Birthday =====
+function openBdayAdd(){
+  document.getElementById('bday-orig-name').value='';
+  document.getElementById('bday-name').value='';
+  document.getElementById('bday-date').value='';
+  document.getElementById('bday-note').value='';
+  document.getElementById('bday-del-btn').style.display='none';
+  document.getElementById('modal-birthday').classList.add('show');
+  setTimeout(function(){document.getElementById('bday-name').focus();},300);
+}
+function openBdayEdit(name){
+  var b=DATA.birthdays.find(function(x){return x.name===name;});
+  if(!b)return;
+  document.getElementById('bday-orig-name').value=b.name;
+  document.getElementById('bday-name').value=b.name;
+  document.getElementById('bday-date').value=b.date==='??-??'?'':b.date;
+  document.getElementById('bday-note').value=b.note||'';
+  document.getElementById('bday-del-btn').style.display='block';
+  document.getElementById('modal-birthday').classList.add('show');
+}
+function saveBirthday(){
+  var name=document.getElementById('bday-name').value.trim();
+  var dateR=document.getElementById('bday-date').value.trim();
+  var note=document.getElementById('bday-note').value.trim();
+  var orig=document.getElementById('bday-orig-name').value;
+  if(!name){toast('請輸入姓名');return;}
+  if(!dateR){toast('請輸入生日');return;}
+  var m=dateR.match(/^(\d{1,2})-(\d{1,2})$/);
+  if(!m){toast('格式應為 MM-DD（例如 08-15）');return;}
+  var date=m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
+  var item={name:name,date:date,note:note};
+
+  if(orig&&orig!==name)DATA.birthdays=DATA.birthdays.filter(function(x){return x.name!==orig;});
+  var ex=DATA.birthdays.findIndex(function(x){return x.name===name;});
+  if(ex>=0)DATA.birthdays[ex]=item;else DATA.birthdays.push(item);
+  markLocalChange();
+  saveLocal();
+  renderBirthdays();
+  closeModal('modal-birthday');
+  toast('✅ 已儲存 '+name+' 的生日');
+  pushToGitHub();
+}
+function confirmDeleteBday(){
+  var name=document.getElementById('bday-orig-name').value;
+  showConfirm('確定要刪除 '+name+' 的生日嗎？',function(){
+    DATA.birthdays=DATA.birthdays.filter(function(x){return x.name!==name;});
+    markLocalChange();
+    saveLocal();
+    renderBirthdays();
+    closeModal('modal-birthday');
+    closeConfirm();
+    toast('🗑️ 已刪除 '+name+' 生日');
+    pushToGitHub();
+  });
+}
+
+// ===== Confirm =====
+function showConfirm(msg,cb){
+  document.getElementById('confirm-msg').textContent=msg;
+  document.getElementById('confirm-yes').onclick=cb;
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('show');}
+
+// ===== Close on overlay =====
+['modal-reminder','modal-birthday','confirm-overlay'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===this){
+      if(id==='confirm-overlay')closeConfirm();else closeModal(id);
+    }
+  });
+});
+
+// ===== Auto sync (every 10s) =====
+var _pushTimer = null;
+function schedulePush() {
+  if (_pushTimer) return; // already scheduled
+  _pushTimer = setTimeout(function() {
+    _pushTimer = null;
+    pushToGitHub();
+  }, 3000); // push 3s after last local change (batched)
+}
+setInterval(function(){
+  // Pull from GitHub every 10s
+  syncFromGitHub();
+}, 10000);
+
+// ===== INIT =====
+function init(){
+  loadLocal(); // 先載入本機暫存（開頁面即顯示）
+  renderAll();
+  document.getElementById('setup-banner').style.display='none';
+  // Sync from GitHub API — works from any network, no WiFi needed
+  syncFromGitHub();
+  // Also try local API server if configured
+  API_BASE = getApiBase();
+  if (API_BASE) {
+    apiFetch('/data').then(function(d){ DATA = d; API_ONLINE = true; saveLocal(); renderAll(); }).catch(function(){});
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+name: Caregiver Personal Reminder
+
+on:
+  schedule:
+    # Every hour at :00
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Don't spam email on failure - WhatsApp may just be disconnected
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install baileys qrcode pino
+      - name: Send caregiver reminders
+        env:
+          WA_CREDS_B64: ${{ secrets.WA_CREDS_B64 }}
+        run: node wa-caregiver-remind-v2.js
