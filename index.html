@@ -950,10 +950,7 @@ function fireReminderNotification(r, when) {
     try { new Notification(title, { body: body, icon: 'icon-192.png', tag: r.id, vibrate: [200,100,200] }); } catch(e){}
   }
   toast('⏰ ' + r.name + (r.time && r.time !== '00:00' ? ' @' + r.time : ''));
-  // mark as handled so GitHub Actions won't also Web-Push the same occurrence
-  var key = occKey(r, when);
-  r._lastPushKey = key;
-  syncToServer();
+  // 去重由雲端 push-state.json 處理；前端唔寫 data.json（避免同 UI 編輯撞 409）
 }
 
 function checkDueReminders() {
